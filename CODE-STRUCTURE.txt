@@ -20,7 +20,7 @@ Some notes about the code in mvee.py:
 * Rather than continue to add keyword arguments to the mvee2 function, we instead made it accept arbitrary keyword arguments and kept a separate dictionary of default parameters that was compared against anything the user input and updated as necessary. We doubt this is considered best practice, but it was quite convenient.
 
 Note about parameters.py:
-The code in parameters.py does not affect the method itself; it was used to decrease the amount of duplication we needed to do in setting parameters for some of my tests. We do not think you will need to change it or use it at all if your only goal is to recreate the results from the document.
+The code in parameters.py does not affect the method itself; it was used to decrease the amount of duplication we needed to do in setting parameters for some of our tests. We do not think you will need to change it or use it at all if your only goal is to recreate the results from the document.
 
 Note about the runner code:
-* We are reasonably sure we commented out all of these for you, but in case we missed one, the purpose of the interactive_plot variable in some of the runner code was to stop me from accidentally overwriting output files. To overwrite a file, interactive_plot must be False, and there is usually another pair of lines involving interactive_plot that must be commented out or they will print a warning and quit.
+* We are reasonably sure we commented out all of these for you, but in case we missed one, the purpose of the interactive_plot variable in some of the runner code was to stop us from accidentally overwriting output files. To overwrite a file, interactive_plot must be False, and there is usually another pair of lines involving interactive_plot that must be commented out or they will print a warning and quit.

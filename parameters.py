@@ -3,7 +3,7 @@ class Param:
     Acts like a dictionary of dictionaries with default values for keys of
     the inner dictionaries.
     '''
-    
+
     def __init__(self, defaults, methods, labels={}):
         self.adjusted = {m: {'method': m} for m in methods}
         for m in methods:

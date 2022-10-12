@@ -11,19 +11,34 @@ import matplotlib.pyplot as plt
 import scipy.stats
 import sklearn.metrics
 import time
+import argparse
+import pathlib
 
 from mvee import mvee2
 from mvee import kurtosis
 from plotting import applySettings
 
 
+
+parser = argparse.ArgumentParser(description="Generate sinh-arcsinh results")
+parser.add_argument("method", help="{todd|newton}")
+parser.add_argument("n", type=int)
+args = parser.parse_args()
+
+if args.method not in ['todd', 'newton']:
+    raise Exception('Run with method %s. Acceptable options are '
+                    '"todd" and "newton"' % args.method)
+
+if args.n < 2:
+    raise Exception('Run with n = %d. Must be an integer greater than 1'
+                    % args.n)
+
 m = 5000
-n = 50
+n = args.n
 epsilon = 1e-6
 max_iter = 1000
 n_repeats = 5
-method = 'todd'
-#method = 'newton'
+method = args.method
 
 kur_params = np.logspace(-1, 2, num=40)
 skew_param = 0
@@ -72,6 +87,7 @@ for kur_param in kur_params:
         times.append(t2 - t1)
 
 basedir = 'outputs/kur-tests%s/kur-test-%d/' % (fname_str, n)
+pathlib.Path(basedir).mkdir(parents=True, exist_ok=True)
 np.savetxt(basedir + 'change-kurtosis-only-kurs', kurs)
 np.savetxt(basedir + 'change-kurtosis-only-cores', cores)
 np.savetxt(basedir + 'change-kurtosis-only-n', np.array([n]))

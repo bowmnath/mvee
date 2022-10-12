@@ -7,19 +7,28 @@ import numpy.linalg as la
 import matplotlib.pyplot as plt
 import scipy.stats
 import sklearn.metrics
+import argparse
 
 from mvee import mvee2
 from mvee import kurtosis
 from plotting import applySettings
 
 
+
+parser = argparse.ArgumentParser(description="Generate figure 4")
+parser.add_argument("method", help="{todd|newton}")
+args = parser.parse_args()
+
+if args.method not in ['todd', 'newton']:
+    raise Exception('Run with method %s. Acceptable options are '
+                    '"todd" and "newton"' % args.method)
+
 m = 5000
 ns = [10, 12, 15, 18]
 epsilon = 1e-6
 max_iter = 1000
 n_repeats = 2
-#method = 'newton'
-method = 'todd'
+method = args.method
 
 kur_params = np.logspace(-1, 2, num=40)
 skew_param = 0

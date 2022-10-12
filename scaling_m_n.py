@@ -11,6 +11,7 @@ from mvee import mvee2
 from parameters import Param
 import time
 import os
+import pathlib
 
 
 
@@ -99,7 +100,7 @@ def save_array(times_dict, ms, ns, dirname, label):
     '''
     Given a dict of timings for a single method, write the timings to
     disk as a 2d array.
-    
+
     If the dict is incomplete, the empty spots will be filled with -1.
     '''
     times = fill_array(times_dict, ms, ns)
@@ -170,7 +171,7 @@ for run_count in range(1, 6):
     else:
         seed = int(time.time())
         timess = {}
-        os.makedirs(dirname, exist_ok=True)
+        pathlib.Path(dirname).mkdir(parents=True, exist_ok=True)
         with open(dirname + '/' + 'otherinfo.txt', 'w') as f:
             f.write('seed: %d\nepsilon: %g\n' % (seed, epsilon))
             f.write('prob_type: %s\n' % prob_type)

@@ -10,26 +10,31 @@ from helpers import NumpyEncoder
 import time
 import os
 import json
+import argparse
 
 
+
+parser = argparse.ArgumentParser(description="Plot figure 6")
+parser.add_argument("method", help="{todd|newton}")
+args = parser.parse_args()
+
+if args.method not in ['todd', 'newton']:
+    raise Exception('Run with argument %s. Acceptable options are '
+                    '"todd" and "newton"' % args.method)
 
 plotter = plt.plot
 base_dirname = './outputs/hybrid-perfect/'
 
-# {{{ Adding perfect to other 5
-#all_seeds = [11550, 151550, 121550, 171550, 161550, 111550]  # CA; Gaussian; n=50
-all_seeds = [101550, 91550, 81550, 131550, 141550, 181550]  # Newton; Gaussian; n=50
+if args.method == 'todd':
+    all_seeds = [11550, 151550, 121550, 171550, 161550, 111550]  # CA; Gaussian; n=50
 
-colors = ['green', 'orange', 'blue', 'brown', 'yellow', 'red']  # Newton
-order = [0, 1, 2, 4, 3, 5]  # Newton
+    colors = ['green', 'yellow', 'orange', 'red', 'brown', 'blue']  # CA 50
+    order = [0, 2, 5, 1, 4, 3]  # CA 50
+else:
+    all_seeds = [101550, 91550, 81550, 131550, 141550, 181550]  # Newton; Gaussian; n=50
 
-#colors = ['green', 'yellow', 'orange', 'red', 'brown', 'blue']  # CA 50
-#order = [0, 2, 5, 1, 4, 3]  # CA 50
-
-ca_or_newt = 'newton'
-data_type = 'gaussian'
-num = 50
-# }}}
+    colors = ['green', 'orange', 'blue', 'brown', 'yellow', 'red']  # Newton
+    order = [0, 1, 2, 4, 3, 5]  # Newton
 
 for seed_num, seed in enumerate(all_seeds):
 

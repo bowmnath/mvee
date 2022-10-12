@@ -4,8 +4,6 @@ Determine how kurtosis affects:
     condition number of Hessian
     size of core set
 
-Most of this code was copied from prediction_not_beta.py.
-
 Warning -- if any of the runs do not finish, the labels in the legend will
 be wrong
 '''
@@ -16,17 +14,33 @@ import matplotlib.pyplot as plt
 import scipy.stats
 import sklearn.metrics
 import time
+import argparse
+import pathlib
 
 from mvee import mvee2, projected_Hessian, kurtosis
 from plotting import applySettings
 
 
+
+parser = argparse.ArgumentParser(
+           description="Generate kurtosis results for various distributions")
+parser.add_argument("method", help="{todd|newton}")
+parser.add_argument("n", type=int)
+args = parser.parse_args()
+
+if args.method not in ['todd', 'newton']:
+    raise Exception('Run with argument %s. Acceptable options are '
+                    '"todd" and "newton"' % args.method)
+
+if args.n < 2:
+    raise Exception('Run with n = %d. Must be an integer greater than 1'
+                    % args.n)
+
 m = 5000
-n = 50
+n = args.n
 epsilon = 1e-6
 n_repeats = 5
-#method = 'todd'
-method = 'newton'
+method = args.method
 interactive_plot = False
 
 if method == 'newton':
@@ -115,6 +129,7 @@ for dist in distros:
         times.append(t2 - t1)
 
 basedir = 'outputs/kur-tests%s/kur-test-%d/' % (fname_str, n)
+pathlib.Path(basedir).mkdir(parents=True, exist_ok=True)
 np.savetxt(basedir + 'cond-vs-kurtosis-kurs', kurs)
 np.savetxt(basedir + 'cond-vs-kurtosis-cores', cores)
 np.savetxt(basedir + 'cond-vs-kurtosis-n', np.array([n]))

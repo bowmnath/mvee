@@ -1,12 +1,12 @@
 # Recreating information about kurtosis, core set size, and iteration count
 
-change_kurtosis_only.py -- generate core set size vs kurtosis for sinh-arcsinh data. Change method = 'newton' or method = 'todd' depending on which results you want. That is the only change you should need to make. This will take a few minutes (probably 5 - 10) to run.
+change_kurtosis_only.py -- generate problem and convergence information based on kurtosis for sinh-arcsinh data. Pass argument 'newton' or 'todd' depending on which results you want. This will take a few minutes (probably 5 - 10) to run.
 
-cond_vs_kurtosis.py -- generate core set size vs kurtosis for various distributions. Change method = 'newton' or method = 'todd' depending on which results you want. That is the only change you should need to make. This will take a few minutes (probably 5 - 10) to run.
+cond_vs_kurtosis.py -- generate problem and convergence information based on kurtosis for various distributions. Pass argument 'newton' or 'todd' depending on which results you want. That is the only change you should need to make. This will take a few minutes (probably 5 - 10) to run.
 
-thesis_generate_kurtosis -- plot core set size vs kurtosis. Requires data to be generated first by the other scripts. Will require X-forwarding to make plot display. Change varied_data to switch between sinh-arcsinh and the varied distributions. Change do_todd to switch between plotting Newton and coordinate ascent.
+thesis_generate_kurtosis -- plot iterations or core-set size vs kurtosis. Requires data to be generated first by the other scripts. Will require X-forwarding to make plot display. Has several arguments controlling what to plot.
 
-change_kurtosis_n.py -- generate core set size vs kurtosis with varying values of n. Also plots results, which will require X-forwarding. Change method variable to change which method is used. Runs fairly quickly (1 - 5 minutes).
+change_kurtosis_n.py -- generate core set size vs kurtosis with varying values of n. Also plots results, which will require X-forwarding. Accepts argument to change which method is used. Runs fairly quickly (1 - 5 minutes).
 
 perfect_hybrid.py -- generate data for core set size vs iteration (Fig 6). To recreate the data for Fig 6, use mode = 'run_only' and set seeds_to_run = [101550, 91550, 81550, 131550, 141550, 181550, 11550, 151550, 121550, 171550, 161550, 111550] (these values should already be set for you). Running this once will be sufficient to generate all of the data from the figure. This script will take several minutes (approximately 15 - 30) to run.
 
