@@ -8,9 +8,9 @@ The null-space matrix as described in the document and the constraints are both 
 
 The Cache class was created due to the expense of fancy indexing in Python. It simply stores several large matrices so that they do not need to be recomputed, only instantiating them as necessary.
 
-The new algorithm described in the document is written in the function mvee2. This function can be used to compute any of the active-set methods described in the document. It defaults to Newton; to use a different method, specify the method as a keyword argument.
+The new algorithm described in the document is written in the function mvee2. This function can be used to compute any of the active-set methods described in the document. It defaults to Newton; to use a different method, specify the method as a keyword argument.  Comments are provided to indicate which lines of code line up with which parts of the pseudocode provided in the document.
 
-The coordinate ascent method due to Todd, which is used as a baseline in our comparisons, is implemented in the function mvee. This same coordinate ascent method is used if mvee2 is called with method='todd'.
+The coordinate ascent method due to Todd, which is used as a baseline in our comparisons, is implemented in the function mvee. This same coordinate ascent method is used if mvee2 is called with method='todd'. This code is a straightforward port of MATLAB code provided by Michael J. Todd in "Minimum-Volume Enclosing Ellipsoids: Theory and Applications".
 
 Some notes about the code in mvee.py:
 * The code contains most of the work we did on this topic, even if that work has not yet been completed or was not written up in the document. This includes primal methods, several unused initializations, a trust-region method, and a CUDA implementation.
