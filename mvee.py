@@ -1171,6 +1171,18 @@ def m_orthogonalize(basis, vec, M):
 # {{{ Line search
 
 def trust_region(aBar, p_k, x_k, HessL, f_xk, constraints, bfgs_ortho, delta):
+    '''
+    Using trust region rather than line search to compute step length seems to
+    be a promising avenue for speeding-up non-Newton methods because it may
+    require fewer evaluations of the (expensive) objective function, but
+    algorithm currently does not converge with trust-region search as
+    implemented here.
+
+    Trust-region search is not referenced in the paper and is included here
+    only in case there is future interest in modifying (correcting) the
+    implementation to possibly produce a speed-up to non-Newton methods.
+    It is currently broken and should not be used.
+    '''
     inds = ~constraints.active
     x = x_k[inds]
     p_orig = p_k[inds].copy()
@@ -2501,11 +2513,31 @@ def mvee_primal(X, **kwargs):
 # {{{ Calculate MVEE via active-set method
 
 def mvee2(X, **kwargs):
+    '''
+    Implementation of Algorithm 2
 
+    Specify initialization with keyword 'initialize' --
+    currently-available options can be found in function 'choose_init'.
+
+    Specify method as one of the following:
+    ['newton', 'BFGS', 'truncated', 'gradient', 'cg', 'todd', 'truncated_fd',
+     'L-BFGS']
+
+    Comments in code indicate which sections match which lines of pseudocode
+    from paper introducing this method. Lines are not always in exactly the
+    same order as pseudocode because the most clear exposition was not always
+    the most convenient or efficient in this Python implementation.
+    '''
+
+    # Options to control behavior of (L)BFGS, CG, or trust-region methods
+    # These are currently set to values that were found empirically to be
+    # most effective and should not be changed without a good reason
     ortho_bfgs = False
     ortho_lbfgs = False
     ortho_cg = False
     tr_delta = 0.25  # for trust region methods
+
+    # Begin parse arguments -----
 
     for key in kwargs.keys():
         if key not in defaults.keys():
@@ -2526,23 +2558,49 @@ def mvee2(X, **kwargs):
         raise Exception('You specified method=%s, which does not exist' %
                         pr.method)
 
+    # Trust-region search is not currently implemented
+    # See trust_region() for details
+    if pr.search == 'trust':
+        raise Exception('You specified search=trust, but trust-region search '
+                        'is not currently implemented.')
+
+    # End parse arguments -----
+
+    # General MVEE can be thought of as centered MVEE in one higher dimension
+    # If specified by user, add dimension so that we can find centered
+    # ellipsoid
     if pr.upproject:
         X = np.vstack([X, np.ones(X.shape[1])])
 
+    # Todd's coordinate-ascent algorithm (a variant of Frank-Wolfe) does
+    # not fall under the general template of constrained algorithms
+    # implemented here, so is treated in a separate method
     if pr.method == 'todd':
         return mvee(X, **params)
 
     n, m = X.shape
 
+    # Note about CUDA -- the CUDA implementation is not highly optimized or
+    # thoroughly tested, and is not referenced in the paper describing this
+    # algorithm. However, brief testing did not lead to any noticeable errors
+    # and produced a good speed-up, so the CUDA implementation is included
+    # in case it is of interest to users.
     if DO_CUDA:
         X = np.asfortranarray(X)
         handle = skcuda.cublas.cublasCreate()
     else:
         handle = None
 
+    # Initialize -- line (2) of Algorithm 2
+    # Variable 'x_k' (denoting kth iterate of x) is called 'u' in Algorithm 2.
+    # At some point, the code may be changed to refer to this as 'u' or 'u_k',
+    # either of which would be more clear and consistent.
     x_k = choose_init(X, pr)
 
-    # Initialize working set
+    # Initialize working set -- line (5) of Algorithm 2
+    # Line (5) is included before lines (3) and (4) in this implementation
+    # because our Cholesky routine is more efficient when using the
+    # 'constraints' array directly rather than looking for nonzeros in 'u'
     working = list(np.where(x_k < 1e-5)[0])
     constraints = Constraints(working, m + 1, Cache(X))
     Z = NullSpaceMatrix(constraints)
@@ -2552,8 +2610,12 @@ def mvee2(X, **kwargs):
         fake_working = 0
     all_indices = np.arange(m)
 
-    # Calculate initial state
+    # Calculate initial state -- line (3) of Algorithm 2
     L = cholesky_small(constraints, x_k[~constraints.active])
+
+    # Calculate projected gradient
+    # This is computed here only because it is sometimes of interest to track
+    # the initial projected gradient.
     g_z = projected_gradient_small(constraints, L)
 
     if DO_CUDA:
@@ -2572,6 +2634,7 @@ def mvee2(X, **kwargs):
     else:
         gpu_args = None
 
+    # Starting guesses for BFGS and L-BFGS -- not applicable to other methods
     if pr.method == 'BFGS':
         if pr.bfgs_warm_start:
             HessL = sla.cholesky(-projected_Hessian(X, L, Z),
@@ -2586,8 +2649,13 @@ def mvee2(X, **kwargs):
         lbfgs_first = 0
         lbfgs_iter = 0
 
+    # Initial objective value is not currently used as part of convergence
+    # condition or step choice, but is cheap to compute once L is known and
+    # is often of interest when monitoring the algorithm's behavior
     f_xk = objective(L)
 
+    # For hybrid methods only, determine how many iterations to continue after
+    # constraints stop changing before switching method
     if pr.hybrid:
         constraints_unchanged_count = 0
         if 'constraints_unchanged_limit' not in pr.hybrid:
@@ -2599,6 +2667,10 @@ def mvee2(X, **kwargs):
             # keep track of inactive constraints because the number of active
             # constraints can decrease spuriously when drop_every is applied
             new_constraint_count = constraints.lennw
+
+    # Begin tracking info -----------
+    # Values in this section are not part of the algorithm and are used for
+    # profiling and tracking the algorithm
 
     retvals = {}
     if pr.track_objs:
@@ -2639,13 +2711,15 @@ def mvee2(X, **kwargs):
         core_set_sizes = [(~constraints.active).sum()]
         retvals['core_set_sizes'] = core_set_sizes
 
-    iter_count = 0
-    step_count = 0
     orig = set(np.where(x_k > 0)[0])
     added = set([])
     remd = set([])
     acount = 0
     rcount = 0
+
+    # End tracking info -----------
+
+    iter_count = 0
     t1 = time.time()
     while iter_count < pr.max_iter:
 
@@ -2675,14 +2749,14 @@ def mvee2(X, **kwargs):
                     retvals[key] = new_retvals[key]
             return retvals
 
-        # Check for convergence with this active set
-        g_zz = small_gradient(constraints, L)
-        eps_plus = (np.max(g_zz) - n)/n
-        eps_minus = (n - np.min(g_zz))/n
-        eps_worst = max(eps_plus, eps_minus)
-
-        # Check for convergence of entire problem
+        # Compute gradient -- lines (4) and (20) from Algorithm 2
+        # It was slightly more efficient in practice not to compute the
+        # gradient at the end of the loop in case the loop terminated and the
+        # gradient did not need to be computed the last time
         g_xk = gradient(X, L, gpu_args=gpu_args)
+
+        # Begin check for convergence of entire problem --------
+        # Lines (7) - (12) of Algorithm 2
         eps_plus = (np.max(g_xk) - n)/n
         nonzeros = np.where(x_k > 1e-8)[0]
         eps_minus = (n - np.min(g_xk[nonzeros]))/n
@@ -2692,8 +2766,14 @@ def mvee2(X, **kwargs):
 
         if eps_worst < epsilon:
             break
+        # End check for convergence of entire problem --------
 
-        # Remove bad constraint if one exists
+        # Begin remove bad constraint if one exists ----------
+
+        # This section is part of line (21) of Algorithm 2. In practice,
+        # removing constraints is more efficient to do before trying to step
+        # because a bad constraint can force us to take an unnecessarily small
+        # step. Adding constraints is done later, after the step is computed.
         active_grad = g_xk[constraints.active]
         try_ind = min(3, len(active_grad))
         if try_ind > 0:
@@ -2755,11 +2835,16 @@ def mvee2(X, **kwargs):
                         if not iter_count in constraint_rem_inds:
                             constraint_rem_inds.append(iter_count)
 
+        # End remove bad constraint if one exists ----------
+
         # If active set spans entire space, we are done
         if Z.shape[1] == 0:
             break
 
-        # Calculate direction of next step
+        # Begin calculate direction of next step -------------
+
+        # Various implementations of lines (13) - (15) of Algorithm 2 depending
+        # on which method is in use
         if pr.method == 'BFGS':
             g_z = projected_gradient_small(constraints, L, ortho=ortho_bfgs)
             p_k, bfgs_diff = _bfgs_step(Z, g_z, HessL)
@@ -2792,7 +2877,7 @@ def mvee2(X, **kwargs):
             p_k = g_z + beta*g_zkm1
             p_k = Z.dot(p_k)
 
-        # Compare angles between Newton and other methods
+        # Compare angles between Newton and other methods -- for tracking only
         if pr.track_angles:
             step = p_k
             g_z2 = projected_gradient_small(constraints, L, ortho=False)
@@ -2807,8 +2892,13 @@ def mvee2(X, **kwargs):
             # progress.
             p_k = Z.dot(g_z)
 
+        # End calculate direction of next step -------------
+
+        # Begin maximum step length --------------
+
         # Determine maximum possible step length until running into a
         # constraint not in the active set
+        # Line (16) of Algorithm 2
         neg_inds = np.where(p_k[~constraints.active] < 0)[0]
         neg_not_working = all_indices[~constraints.active][neg_inds]
         if len(neg_inds) == 0:
@@ -2832,6 +2922,8 @@ def mvee2(X, **kwargs):
                 except ValueError:
                     fake_working = 0
 
+                # Updating constraints requires updating information for
+                # methods that track approximate Hessian and CG
                 if pr.method == 'BFGS':
                     do_swap = False
                     if add_ind == old_constraints.basic:
@@ -2852,6 +2944,7 @@ def mvee2(X, **kwargs):
                 elif pr.method == 'cg':
                     g_zkm1 = None
 
+                # These lines are solely for tracking purposes -----
                 if pr.track_all_iters:
                     xs.append(x_k.copy())
 
@@ -2864,10 +2957,17 @@ def mvee2(X, **kwargs):
 
                 if pr.track_stepsizes and pr.track_all_iters:
                     stepsizes.append(0)
+                # End tracking lines -----
 
                 continue
 
+        # End maximum step length --------------
+
+        # Begin actual step length -------------
+
         # Line search for best step length
+        # Line (17) from Algorithm 2
+        # Variable a_k below is equivalent to lambda in pseudocode
         if pr.method in ('newton', 'truncated', 'truncated_fd'):
             a_k = min(aBar, 1)
             inds = ~constraints.active
@@ -2887,19 +2987,10 @@ def mvee2(X, **kwargs):
         if pr.track_stepsizes:
             stepsizes.append(a_k)
 
-        # Step to next iterate and update related values
-        old_xk = x_k.copy()
-        if pr.search == 'trust' and pr.method == 'BFGS':
-            x_k = new_xk
-        else:
-            x_k = x_k + a_k*p_k
-        x_k /= x_k.sum()
-        step_count += 1
+        # End actual step length -------------
 
-        # Abort if step is exactly same as last iteration
-        if len(old_xk) == len(x_k) and (old_xk == x_k).all():
-            break
-
+        # Before stepping, BFGS and related methods require us to keep track
+        # of values that will be used to update approximate curvature
         if pr.method in ('BFGS', 'cg', 'L-BFGS'):
             if pr.method == 'BFGS':
                 ortho_all = ortho_bfgs
@@ -2909,10 +3000,34 @@ def mvee2(X, **kwargs):
                 ortho_all = ortho_cg
             g_zkm1 = projected_gradient_small(constraints, L, ortho=ortho_all)
 
+        # Begin perform step and update related values ----------
+
+        # Step to next iterate -- line (18) from Algorithm 2
+        old_xk = x_k.copy()
+        if pr.search == 'trust' and pr.method == 'BFGS':
+            x_k = new_xk
+        else:
+            x_k = x_k + a_k*p_k
+
+        # In theory, elements of x_k already sum to 1 due to constraints, but
+        # to avoid rounding errors as much as possilbe, we force the sum to 1
+        x_k /= x_k.sum()
+
+        # Abort if step is exactly same as last iteration
+        if len(old_xk) == len(x_k) and (old_xk == x_k).all():
+            break
+
+        # Update values that depend on current iterate
+        # Line (19) from Algorithm 2, though, in practice, some values are
+        # actually computed earlier as part of line search
         L = max_L
         g_z = projected_gradient_small(constraints, L)
         f_xk = max_val
 
+        # End perform step and update related values ----------
+
+        # Update approximate Hessian
+        # Example of method-specific code in line (22) of Algorithm 2
         if pr.method == 'BFGS':
             g_zk = projected_gradient_small(constraints, L, ortho=ortho_bfgs)
             HessL = _bfgs_updated_hessian(HessL, bfgs_diff, a_k,
@@ -2924,7 +3039,13 @@ def mvee2(X, **kwargs):
                               pr.lbfgs_n_vecs, lbfgs_iter, lbfgs_first)
             lbfgs_iter += 1
 
+        # Begin add constraint ----------
+
         # Add constraint to working set
+        # This section is part of line (21) of Algorithm 2. Constraints are
+        # added if it is found that they limited the length of the most recent
+        # step. In practice, removing constraints is done earlier, before the
+        # step is computed.
         if np.abs(a_k - aBar) < 0.01*aBar:
             all_small = [neg_not_working[aBar_i]]
             for add_ind in all_small:
@@ -2967,6 +3088,10 @@ def mvee2(X, **kwargs):
 
             x_k = x_k/x_k.sum()
 
+        # End add constraint ----------
+
+        # Hybrid method must track whether constraints changed to determine
+        # when to transition
         if pr.hybrid and pr.hybrid['constraints_unchanged_limit'] < np.inf:
             old_constraint_count = new_constraint_count
             new_constraint_count = constraints.lennw
@@ -2975,6 +3100,7 @@ def mvee2(X, **kwargs):
             else:
                 constraints_unchanged_count = 0
 
+        # Next few lines are solely for tracking purposes
         if pr.track_ellipses:
             Ls.append(L.copy())
         if pr.track_iters:
@@ -2986,6 +3112,7 @@ def mvee2(X, **kwargs):
         if pr.track_errors:
             errors.append(la.norm(x_k - truesol))
 
+    # Undo upproject to get final answer if necessary
     if pr.upproject:
         small_H = solve_cholesky(L, np.eye(len(L)))[:-1, :-1]
         L = sla.cholesky(la.inv(small_H),
@@ -2994,6 +3121,8 @@ def mvee2(X, **kwargs):
     else:
         c = np.zeros(n)
 
+    # Compute epsilon-primal feasibility and optimality of final answer if
+    # requested
     if pr.verbose or pr.converged:
         if pr.upproject:
             Xc = X[:-1] - c[:, np.newaxis]
@@ -3013,6 +3142,8 @@ def mvee2(X, **kwargs):
     if iter_count >= pr.max_iter and not pr.silent:
         print("Maximum number of iterations reached. (%s)" % pr.method)
 
+    # User may want various outputs -- return what they requested in a dict
+    # Same dict may include tracking information from above if requested
     if pr.full_output:
         retvals['L'] = L
         retvals['c'] = c
@@ -3035,6 +3166,8 @@ def mvee2(X, **kwargs):
     if pr.track_count:
         retvals['iter_count'] = iter_count
 
+    # If no values were requested by user, default to returning matrix
+    # representing ellipsoid
     if len(retvals) == 0:
         retvals['mat'] = solve_cholesky(L, np.eye(len(L)))
 
@@ -3050,6 +3183,14 @@ def mvee2(X, **kwargs):
 # {{{ Calculate MVEE via Todd's algorithm
 
 def mvee(X, **kwargs):
+    '''
+    Python implementation of Todd's coordinate ascent algorithm
+
+    Other than addition of substantial amounts of tracking code to help profile
+    method and compare it to new methods, code follows MATLAB version presented
+    in appendix of reference [18]. Please see original code for details on
+    how method is implemented.
+    '''
 
     # Read arguments and supply defaults as necessary
     params = copy.deepcopy(defaults)
