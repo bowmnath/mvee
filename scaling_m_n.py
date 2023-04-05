@@ -12,6 +12,7 @@ from parameters import Param
 import time
 import os
 import pathlib
+import argparse
 
 
 
@@ -116,15 +117,61 @@ def save_array(times_dict, ms, ns, dirname, label):
     # }}}
 
 
-#ns = np.logspace(4, 7, num=4, base=2, dtype=int)
-ms = np.logspace(3, 6, num=8, base=10, dtype=int)
-ns = [100]
-#base_dirname = 'outputs/scaling-runs/instance-%d/%s-vary-n'
-base_dirname = 'outputs/scaling-runs/instance-%d/%s-vary-m'
+parser = argparse.ArgumentParser(description="Generate timing results. "
+        "Values are drawn from low (randn), high (lognormal), or very high "
+        "(randn*cauchy) distribution. Values of changing variable will be "
+        "taken from "
+        "`np.logspace(low_bound_log, high_bound_log, num=num_values, base=log_base)."
+        " Value of fixed variable will be fixed_variable_value.")
+parser.add_argument("problem_kurtosis",
+                    choices=['low', 'high', 'very'],
+                    help="desired kurtosis level of generated data")
+parser.add_argument("changing_variable",
+                    choices=['m', 'n'],
+                    help='variable that will not remain fixed')
+parser.add_argument("log_base",
+                    type=int,
+                    help='base of logarithm -- typically 2 or 10')
+parser.add_argument("low_bound_log",
+                    type=int,
+                    help='log_10(smallest value of changing variable)')
+parser.add_argument("high_bound_log",
+                    type=int,
+                    help='log_{base}(largest value of changing variable)')
+parser.add_argument("num_values",
+                    type=int,
+                    help='log_{base}(largest value of changing variable)')
+parser.add_argument("fixed_variable_value",
+                    type=int,
+                    help='fixed value of the other variable '
+                         '(i.e., the one NOT specified by changing_variable)')
+args = parser.parse_args()
+
+vary_n = (args.changing_variable == 'n')
+varied = np.logspace(args.low_bound_log,
+                     args.high_bound_log,
+                     num=args.num_values,
+                     base=args.log_base,
+                     dtype=int)
+fixed = [args.fixed_variable_value]
+
+if vary_n:
+    ns = varied
+    ms = fixed
+    base_dirname = 'outputs/scaling-runs/instance-%d/%s-vary-n'
+else:
+    ms = varied
+    ns = fixed
+    base_dirname = 'outputs/scaling-runs/instance-%d/%s-vary-m'
+
+if args.problem_kurtosis == 'low':
+    prob_type = 'randn'
+elif args.problem_kurtosis == 'high':
+    prob_type = 'lognormal'
+else:
+    prob_type = 'randn*cauchy'
+
 epsilon = 1e-6
-prob_type = 'randn*cauchy'
-#prob_type = 'lognormal'
-#prob_type = 'randn'
 read_only = False
 
 methods = ['newton', 'todd', 'hybrid']

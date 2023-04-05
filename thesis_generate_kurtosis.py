@@ -94,6 +94,8 @@ if show_real_data:
         cores_new = np.load(base_docs_dir % doc_dump + 'cores.npy')
         iters_new = np.load(base_docs_dir % doc_dump + 'iters.npy')
         iters_new = iters_new[iters_new < max_iter]
+        cores_new = iters_new[iters_new < max_iter]
+        kurs_new = iters_new[iters_new < max_iter]
         '''
         # One per document dump (rather than per subset sampled)
         kurs_new = np.median(kurs_new)

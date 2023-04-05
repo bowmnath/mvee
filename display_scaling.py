@@ -9,6 +9,7 @@ from plotting import applySettings
 from parameters import Param
 import time
 import os
+import argparse
 
 
 def read_all(dirname, fnames):
@@ -61,6 +62,12 @@ def fill_dict(timesarr, ms, ns):
     # }}}
 
 
+parser = argparse.ArgumentParser(description="Plot timing results.")
+parser.add_argument("changing_variable",
+                    choices=['m', 'n'],
+                    help='variable that will not remain fixed')
+args = parser.parse_args()
+
 good_labels = {'cg': 'CG', 'lbfgs': 'L-BFGS', 'todd': 'Coord. Ascent',
                'gradient': 'Gradient Ascent', 'bfgsrb': 'BFGS (R)',
                'truncated': 'Trunc. Newton', 'newton': 'Newton',
@@ -71,7 +78,7 @@ kur_to_fname = {'Low': 'low', 'High': 'high', 'Very high': 'very'}
 methods = ['newton', 'todd', 'hybrid']
 run_types = ['gaussian', 'cauchy', 'lognormal']
 
-vary_m = False
+vary_m = (args.changing_variable == 'm')
 
 n_instances = 5
 if vary_m:
